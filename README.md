@@ -99,7 +99,6 @@ The `.pre-commit-config.yaml` file includes:
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
   - repo: https://github.com/antonbabenko/pre-commit-terraform
-  - repo: https://github.com/bridgecrewio/checkov
   - repo: https://github.com/zricethezav/gitleaks
   - repo: https://github.com/asottile/add-trailing-comma
   - repo: https://github.com/hhatto/autopep8

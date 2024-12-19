@@ -22,14 +22,6 @@ repos:
           - '--hook-config=--add-to-existing-file=true'
           - '--hook-config=--create-file-if-not-exist=true'
 
-  - repo: local
-    hooks:
-      - id: cloudon-commit-msg
-        name: "Check commit message pattern"
-        entry: .git/hooks/cloudon-commit-msg.sh
-        language: script
-        stages: [commit-msg]
-
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.21.2
     hooks:
