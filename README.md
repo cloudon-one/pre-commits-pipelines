@@ -9,9 +9,6 @@ This repository contains a comprehensive CI/CD pipeline for infrastructure code 
 - [Pipeline Components](#pipeline-components)
 - [Local Development](#local-development)
 - [GitHub Actions Workflow](#github-actions-workflow)
-- [Security Scanning](#security-scanning)
-- [Cost Analysis](#cost-analysis)
-- [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 
 ## Prerequisites
@@ -46,21 +43,15 @@ This repository contains a comprehensive CI/CD pipeline for infrastructure code 
 - YAML/JSON formatting
 - File size limits
 - EOF fixes
-- Secret detection
 
-### Security Scanning
+**TFSec**
 
-1. **Gitleaks**
-   - Scans for secrets in code
-   - Custom rules for Terraform
-   - Historical commit scanning
-
-2. **TFSec**
    - Infrastructure security best practices
    - Custom rule support
    - SARIF report generation
 
-3. **Detect-secrets**
+**Detect-secrets**
+
    - Additional secret scanning
    - Custom pattern support
 
@@ -134,9 +125,6 @@ repos:
    - Change estimation
    - Baseline comparison
    - Monthly projections
-
-
-
 
 ## Troubleshooting
 
