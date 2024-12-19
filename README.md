@@ -22,16 +22,6 @@ This repository contains a comprehensive CI/CD pipeline for infrastructure code 
 - Git 2.28.0 or higher
 - Make
 - GitHub account with repository access
-- Infracost API key (for cost estimation)
-
-### Environment Setup
-
-1. Register for an Infracost API key at [Infracost.io](https://www.infracost.io)
-2. Add the following secrets to your GitHub repository:
-
-   ```
-   INFRACOST_API_KEY=your_api_key
-   ```
 
 ## Quick Start
 
@@ -41,14 +31,7 @@ This repository contains a comprehensive CI/CD pipeline for infrastructure code 
    git clone git@github.com:cloudon-one/pre-commits-pipelines.git
    cd pre-commits-pipelines
 
-2. Install pre-commit hooks:
-
-   ```bash
-   pip install pre-commit
-   pre-commit install
-   ```
-
-3. Run all checks locally:
+2. Run all checks locally:
 
    ```bash
    make all
@@ -80,13 +63,6 @@ This repository contains a comprehensive CI/CD pipeline for infrastructure code 
 3. **Detect-secrets**
    - Additional secret scanning
    - Custom pattern support
-
-### Cost Analysis
-
-- Monthly cost estimation
-- Cost change detection
-- Resource-wise breakdown
-- Usage-based estimates
 
 ## Local Development
 
@@ -125,6 +101,8 @@ repos:
   - repo: https://github.com/antonbabenko/pre-commit-terraform
   - repo: https://github.com/bridgecrewio/checkov
   - repo: https://github.com/zricethezav/gitleaks
+  - repo: https://github.com/asottile/add-trailing-comma
+  - repo: https://github.com/hhatto/autopep8
 ```
 
 ## GitHub Actions Workflow
