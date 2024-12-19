@@ -50,11 +50,6 @@ This repository contains a comprehensive CI/CD pipeline for infrastructure code 
    - Custom rule support
    - SARIF report generation
 
-**Detect-secrets**
-
-   - Additional secret scanning
-   - Custom pattern support
-
 ## Local Development
 
 ### Make Commands
@@ -111,20 +106,10 @@ repos:
    - Size limits
    - Required files
 
-2. **Security**
-   - Secret scanning
-   - Infrastructure security
-   - Compliance checks
-
 3. **Infrastructure**
    - Terraform validation
    - Provider verification
    - Documentation checks
-
-4. **Cost**
-   - Change estimation
-   - Baseline comparison
-   - Monthly projections
 
 ## Troubleshooting
 
