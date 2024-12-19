@@ -146,17 +146,74 @@ repos:
 Custom rules in `.gitleaks.toml`:
 
 ```toml
-# AWS credentials
 [[rules]]
-id = "terraform-aws-access-key"
-description = "AWS Access Key"
-regex = '''(?i)aws_access_key_id.*=.*'''
+id = "terraform-state"
+description = "Terraform state files may contain secrets"
+regex = '''(?i)[\w-]*\.tfstate[\w-]*'''
+tags = ["terraform", "config"]
 
-# Terraform state backend
 [[rules]]
-id = "terraform-state-backend"
-description = "Terraform State Backend Configuration"
-regex = '''(?i)(backend\s*".*")\s*{'''
+id = "aws-access-key"
+description = "AWS Access Key"
+regex = '''(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}'''
+tags = ["aws", "credentials"]
+
+[[rules]]
+id = "aws-secret-key"
+description = "AWS Secret Key"
+regex = '''(?i)aws_secret_access_key\s*=\s*[\'\"]*[A-Za-z0-9/+=]{40}[\'\"]*'''
+tags = ["aws", "credentials"]
+
+[[rules]]
+id = "bitbucket-client-id"
+description = "Bitbucket Client ID"
+regex = '''bitbucket(?:_client|_secret)?(?:_key|_id)?[\'\"=\s]*(?:([A-Za-z0-9]{32})|([0-9a-zA-Z]{32}))'''
+tags = ["bitbucket", "credentials"]
+
+[[rules]]
+id = "private-key"
+description = "Private Key"
+regex = '''(?i)-----BEGIN[ A-Z]*PRIVATE KEY'''
+tags = ["key", "private"]
+
+[[rules]]
+id = "password-in-url"
+description = "Password in URL"
+regex = '''[a-zA-Z]{3,10}://[^/\s:@]*?:[^/\s:@]*?@[^/\s:@]*'''
+tags = ["password", "url"]
+
+[[rules]]
+id = "ip-addr"
+description = "IP Address"
+regex = '''(?:^|[^0-9])(?:(?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))(?:[^0-9]|$)'''
+tags = ["networking", "ip"]
+[rules.ip-addr.allowlist]
+regexes = [
+    '''(127\.0\.0\.1)''',
+    '''(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})''',
+    '''(172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]{1,3}\.[0-9]{1,3})''',
+    '''(192\.168\.[0-9]{1,3}\.[0-9]{1,3})'''
+]
+
+[[rules]]
+id = "high-entropy"
+description = "High entropy string"
+regex = '''[0-9a-zA-Z-_!@#$%^&*()]{16,}'''
+entropy = 4.5
+tags = ["entropy", "secret"]
+[rules.high-entropy.allowlist]
+regexes = [
+    '''[A-Za-z0-9+/]{64}''',    # Base64 encoded strings
+    '''[0-9a-f]{32}''',         # MD5 hashes
+    '''[0-9a-f]{40}''',         # SHA1 hashes
+    '''[0-9a-f]{64}'''          # SHA256 hashes
+]
+
+[[rules]]
+id = "confluence-token"
+description = "Confluence API tokens"
+regex = '''(?i)(confluence[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([a-z0-9=_\-]{32,45})['\"]'''
+tags = ["confluence", "api", "token"]
 ```
 
 ### TFSec Integration

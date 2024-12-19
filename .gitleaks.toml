@@ -1,5 +1,5 @@
 # Title for gitleaks config
-title = "CloudOn Gitleaks Configuration"
+title = "Gitleaks Configuration"
 
 [allowlist]
 description = "Allowlisted files and paths"
