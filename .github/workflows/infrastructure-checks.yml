@@ -68,9 +68,9 @@ jobs:
       with:
         soft_fail: true
         version: latest
-        additional_args: 
-          --no-color 
-          --format json 
+        additional_args:
+          --no-color
+          --format json
           --run-statistics
           --out string
           --format json
