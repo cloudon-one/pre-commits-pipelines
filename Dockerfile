@@ -1,12 +1,10 @@
-FROM hashicorp/terraform:1.7.0 as terraform
-FROM infracost/infracost:ci-0.10 as infracost
-FROM aquasec/tfsec:v1.28 as tfsec
-FROM zricethezav/gitleaks:v8.18.4 as gitleaks
+FROM hashicorp/terraform:1.7.0 AS terraform
+FROM aquasec/tfsec:v1.28 AS tfsec
+FROM zricethezav/gitleaks:v8.18.1 AS gitleaks
 FROM python:3.10-slim
 
 # Copy tools from their respective images
 COPY --from=terraform /bin/terraform /usr/local/bin/
-COPY --from=infracost /usr/local/bin/infracost /usr/local/bin/
 COPY --from=tfsec /usr/bin/tfsec /usr/local/bin/
 COPY --from=gitleaks /usr/bin/gitleaks /usr/local/bin/
 
@@ -22,15 +20,21 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages
-RUN pip install --no-cache-dir \
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
     pre-commit \
     checkov \
-    tflint \
-    terraform-docs \
     detect-secrets
 
-# Install additional tools
-RUN curl -sSfL https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | sh
+# Install TFLint
+RUN curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+
+# Install terraform-docs
+RUN curl -sSLo ./terraform-docs.tar.gz https://terraform-docs.io/dl/v0.16.0/terraform-docs-v0.16.0-$(uname)-amd64.tar.gz && \
+    tar -xzf terraform-docs.tar.gz && \
+    chmod +x terraform-docs && \
+    mv terraform-docs /usr/local/bin/ && \
+    rm terraform-docs.tar.gz
 
 WORKDIR /workspace
 CMD ["pre-commit", "run", "--all-files"]

@@ -19,6 +19,11 @@ on:
       - '.github/workflows/**'
       - '.pre-commit-config.yaml'
 
+# Cancel any in-progress job or run
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   security-scan:
     name: Security Scanning
@@ -28,17 +33,10 @@ jobs:
         with:
           fetch-depth: 1  # Required for Gitleaks to scan git history
 
-      - name: Run Gitleaks
-        run: |
-          docker run --rm \
-            -v $(pwd):/workspace \
-            infra-checks:latest \
-            gitleaks detect \
-            --source=/workspace \
-            --report-format=json \
-            --report-path=gitleaks-report.json \
-            --no-git
-
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       - name: Check Gitleaks report
         id: gitleaks-check
         run: |
@@ -58,35 +56,26 @@ jobs:
           path: gitleaks-report.json
           retention-days: 7
 
-      - name: Comment PR with security results
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-            script: |
-              const fs = require('fs');
-              let securityReport = '### 🔒 Security Scan Results\n\n';
-              
-              // Add Gitleaks results
-              if (process.env.GITLEAKS_ISSUES === 'true') {
-                securityReport += '⚠️ Gitleaks found potential secrets. Please review the artifacts.\n';
-              } else {
-                securityReport += '✅ No secrets found by Gitleaks\n';
-              }
-              
-              // Add other security results...
-              securityReport += '✅ TFSec scan completed\n';
-              securityReport += '✅ Detect-secrets scan completed\n\n';
-              
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: securityReport
-              });    
-  
+  tfsec:
+    name: tfsec
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Clone repo
+      uses: actions/checkout@v4
+    - name: tfsec
+      uses: aquasecurity/tfsec-action@v1.0.3
+      with:
+        soft_fail: true
+        version: latest
+        additional_args: --no-color --format json --output tfsec-results.json
+
   infra-checks:
     name: Infrastructure Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: security-scan
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -97,7 +86,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build and cache Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: false
@@ -107,40 +96,74 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Run pre-commit checks
+        id: precommit
         run: |
           docker run --rm -v $(pwd):/workspace infra-checks:latest
+        continue-on-error: true
+
+      - name: Run TFLint with custom rules
+        id: tflint
+        run: |
+          exit_code=0
+          for dir in $(find . -type f -name "*.tf" -exec dirname {} \; | sort -u); do
+            echo "Running TFLint in $dir"
+            if ! docker run --rm -v $(pwd):/workspace -w /workspace/$dir infra-checks:latest tflint --format=compact; then
+              echo "::error::TFLint failed in $dir"
+              exit_code=1
+            fi
+          done
+          exit $exit_code
 
       - name: Run Terraform initialization
-        if: success()
+        id: tf-init
+        if: success() || failure()  # Run even if previous step failed
         run: |
+          exit_code=0
           for dir in $(find . -type f -name "*.tf" -exec dirname {} \; | sort -u); do
             echo "Initializing Terraform in $dir"
-            docker run --rm -v $(pwd):/workspace -w /workspace/$dir infra-checks:latest terraform init -backend=false
+            if ! docker run --rm -v $(pwd):/workspace -w /workspace/$dir infra-checks:latest terraform init -backend=false; then
+              echo "::error::Terraform init failed in $dir"
+              exit_code=1
+            fi
           done
+          exit $exit_code
 
       - name: Run Terraform validation
-        if: success()
+        id: tf-validate
+        if: success() || failure()  # Run even if previous step failed
         run: |
+          exit_code=0
           for dir in $(find . -type f -name "*.tf" -exec dirname {} \; | sort -u); do
             echo "Validating Terraform in $dir"
-            docker run --rm -v $(pwd):/workspace -w /workspace/$dir infra-checks:latest terraform validate
+            if ! docker run --rm -v $(pwd):/workspace -w /workspace/$dir infra-checks:latest terraform validate; then
+              echo "::error::Terraform validation failed in $dir"
+              exit_code=1
+            fi
           done
+          exit $exit_code
 
-      - name: Comment PR with results
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const output = `#### Infrastructure Validation Results
-            - ✅ Pre-commit checks completed
-            - ✅ Terraform initialization completed
-            - ✅ Terraform validation completed
+      - name: Check for required providers
+        id: check-providers
+        if: success() || failure()  # Run even if previous step failed
+        run: |
+          exit_code=0
+          for dir in $(find . -type f -name "*.tf" -exec dirname {} \; | sort -u); do
+            echo "Checking required providers in $dir"
+            if ! grep -q "required_providers" "$dir"/*.tf; then
+              echo "::error::required_providers block missing in $dir"
+              exit_code=1
+            fi
+          done
+          exit $exit_code
 
-            *For detailed results, check the Actions tab.*`;
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
+      - name: Check workflow status
+        if: always()
+        run: |
+          if [ "${{ steps.precommit.outcome }}" == "failure" ] || \
+             [ "${{ steps.tflint.outcome }}" == "failure" ] || \
+             [ "${{ steps.tf-init.outcome }}" == "failure" ] || \
+             [ "${{ steps.tf-validate.outcome }}" == "failure" ] || \
+             [ "${{ steps.check-providers.outcome }}" == "failure" ]; then
+            echo "One or more infrastructure checks failed"
+            exit 1
+          fi

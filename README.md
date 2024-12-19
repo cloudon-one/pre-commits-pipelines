@@ -108,9 +108,6 @@ make security-scan
 # Run Terraform validation
 make test
 
-# Generate cost estimate
-make cost-estimate
-
 # Clean up resources
 make clean
 
@@ -192,22 +189,6 @@ Security checks include:
 - Network security
 - Encryption
 - Logging & monitoring
-
-## Cost Analysis
-
-### Setup
-
-1. Export your Infracost API key:
-
-   ```bash
-   export INFRACOST_API_KEY=your_api_key
-   ```
-
-2. Run cost estimation:
-
-   ```bash
-   make cost-estimate
-   ```
 
 ### PR Comments
 
