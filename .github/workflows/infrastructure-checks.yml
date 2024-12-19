@@ -68,7 +68,12 @@ jobs:
       with:
         soft_fail: true
         version: latest
-        additional_args: --no-color --format json --output tfsec-results.json
+        additional_args: 
+          --no-color 
+          --format json 
+          --run-statistics
+          --out string
+          --format json
 
   infra-checks:
     name: Infrastructure Validation
