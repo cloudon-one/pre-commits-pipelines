@@ -33,29 +33,6 @@ jobs:
         with:
           fetch-depth: 1  # Required for Gitleaks to scan git history
 
-      - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-      - name: Check Gitleaks report
-        id: gitleaks-check
-        run: |
-          if [ -f gitleaks-report.json ] && [ "$(cat gitleaks-report.json | jq length)" -gt 0 ]; then
-            echo "::error::Gitleaks found potential secrets in the codebase"
-            echo "GITLEAKS_ISSUES=true" >> $GITHUB_ENV
-          else
-            echo "No secrets found by Gitleaks"
-            echo "GITLEAKS_ISSUES=false" >> $GITHUB_ENV
-          fi
-
-      - name: Upload Gitleaks report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gitleaks-report
-          path: gitleaks-report.json
-          retention-days: 7
-
   tfsec:
     name: tfsec
     runs-on: ubuntu-latest

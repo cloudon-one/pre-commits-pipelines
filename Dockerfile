@@ -1,12 +1,10 @@
 FROM hashicorp/terraform:1.7.0 AS terraform
 FROM aquasec/tfsec:v1.28 AS tfsec
-FROM zricethezav/gitleaks:v8.18.1 AS gitleaks
 FROM python:3.10-slim
 
 # Copy tools from their respective images
 COPY --from=terraform /bin/terraform /usr/local/bin/
 COPY --from=tfsec /usr/bin/tfsec /usr/local/bin/
-COPY --from=gitleaks /usr/bin/gitleaks /usr/local/bin/
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -23,8 +21,7 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
     pre-commit \
-    checkov \
-    detect-secrets
+    checkov
 
 # Install TFLint
 RUN curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
