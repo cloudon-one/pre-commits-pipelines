@@ -90,7 +90,7 @@ regex = '''(?i)(confluence[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]
 tags = ["confluence", "api", "token"]
 
 [global]
-file-path = '''(infra|modules)/.*'''
+file-path = '''(infa)/.*'''
 threads = 2
 timeout = "10s"
 max-file-size = 10485760  # 10MB
