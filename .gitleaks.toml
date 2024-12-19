@@ -1,6 +1,6 @@
 title = "CloudOn Gitleaks Configuration"
 
-[allowlist]
+[[rules.allowlists]]
 description = "Allowlisted files and paths"
 paths = [
     '''gitleaks.toml''',
@@ -19,7 +19,7 @@ regexes = [
     '''TEST'''
 ]
 
-[rules]
+[[rules]]
     [rules.terraform-state]
     description = "Terraform state files may contain secrets"
     regex = '''(?i)[\w-]*\.tfstate[\w-]*'''
