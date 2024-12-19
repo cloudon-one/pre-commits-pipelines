@@ -27,6 +27,7 @@ repos:
     hooks:
       - id: gitleaks
         args:
+        - '--config=.gitleaks.toml'
         - '--no-banner'
         - '--redact=20'
         - '--report-format=json'
