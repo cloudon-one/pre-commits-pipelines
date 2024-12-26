@@ -104,13 +104,13 @@ jobs:
         if: success()
         env:
           INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           # Generate comment
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -e INFRACOST_API_KEY=${{ secrets.INFRACOST_API_KEY }} \
-            -e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
+            -e GITHUB_TOKEN=${{ secrets.GH_TOKEN }} \
             -w /workspace \
             infra-checks:latest \
             bash -c 'infracost output --path "infracost-base.json" --format github-comment --out-file infracost.md'
