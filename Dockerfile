@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     jq \
     wget \
     unzip \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages
@@ -32,6 +33,17 @@ RUN curl -sSLo ./terraform-docs.tar.gz https://terraform-docs.io/dl/v0.16.0/terr
     chmod +x terraform-docs && \
     mv terraform-docs /usr/local/bin/ && \
     rm terraform-docs.tar.gz
+
+# Install Infracost directly
+RUN curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh && \
+    infracost --version
+
+# Verify installations
+RUN terraform version && \
+    tfsec --version && \
+    infracost --version && \
+    tflint --version && \
+    terraform-docs --version
 
 WORKDIR /workspace
 CMD ["pre-commit", "run", "--all-files"]
