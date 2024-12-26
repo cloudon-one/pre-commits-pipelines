@@ -51,12 +51,29 @@ jobs:
   cost-estimation:
     name: Cost Estimation
     runs-on: ubuntu-latest
-    # Only run on pull requests
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
       pull-requests: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and cache Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          tags: infra-checks:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Checkout base branch
         uses: actions/checkout@v4
         with:
@@ -64,14 +81,33 @@ jobs:
           fetch-depth: 1
 
       - name: Generate Infracost cost estimate baseline
+        env:
+          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -e INFRACOST_API_KEY=${{ secrets.INFRACOST_API_KEY }} \
-            infra-checks:latest \
-            infracost breakdown --path=/workspace \
-            --format=json \
-            --out-file=/workspace/infracost-base.json
+          # Find all Terraform directories
+          for dir in $(find . -type f -name "*.tf" -exec dirname {} \; | sort -u); do
+            echo "Generating cost estimate for $dir"
+            docker run --rm \
+              -v ${{ github.workspace }}:/workspace \
+              -e INFRACOST_API_KEY \
+              infra-checks:latest \
+              infracost breakdown --path=/workspace/$dir \
+              --format=json \
+              --out-file=/workspace/infracost-base-$${dir//\//-}.json
+          done
+
+          # Combine all JSON files if there are multiple
+          if [ $(ls -1 /workspace/infracost-base-*.json 2>/dev/null | wc -l) -gt 1 ]; then
+            docker run --rm \
+              -v ${{ github.workspace }}:/workspace \
+              -e INFRACOST_API_KEY \
+              infra-checks:latest \
+              infracost output --format json \
+              --path="/workspace/infracost-base-*.json" \
+              --out-file=/workspace/infracost-base.json
+          else
+            mv /workspace/infracost-base-*.json /workspace/infracost-base.json 2>/dev/null || true
+          fi
 
       - name: Checkout PR branch
         uses: actions/checkout@v4
@@ -80,29 +116,62 @@ jobs:
           fetch-depth: 1
 
       - name: Generate Infracost diff
+        env:
+          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -e INFRACOST_API_KEY=${{ secrets.INFRACOST_API_KEY }} \
-            infra-checks:latest \
-            infracost diff \
-            --path=/workspace \
-            --format=json \
-            --compare-to=/workspace/infracost-base.json \
-            --out-file=/workspace/infracost.json
+          # Find all Terraform directories
+          for dir in $(find . -type f -name "*.tf" -exec dirname {} \; | sort -u); do
+            echo "Generating cost estimate for $dir"
+            docker run --rm \
+              -v ${{ github.workspace }}:/workspace \
+              -e INFRACOST_API_KEY \
+              infra-checks:latest \
+              infracost diff \
+              --path=/workspace/$dir \
+              --format=json \
+              --compare-to=/workspace/infracost-base.json \
+              --out-file=/workspace/infracost-diff-$${dir//\//-}.json
+          done
+
+          # Combine all JSON files if there are multiple
+          if [ $(ls -1 /workspace/infracost-diff-*.json 2>/dev/null | wc -l) -gt 1 ]; then
+            docker run --rm \
+              -v ${{ github.workspace }}:/workspace \
+              -e INFRACOST_API_KEY \
+              infra-checks:latest \
+              infracost output --format json \
+              --path="/workspace/infracost-diff-*.json" \
+              --out-file=/workspace/infracost.json
+          else
+            mv /workspace/infracost-diff-*.json /workspace/infracost.json 2>/dev/null || true
+          fi
 
       - name: Post Infracost comment
+        env:
+          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Generate and post comment
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
-            -e INFRACOST_API_KEY=${{ secrets.INFRACOST_API_KEY }} \
-            -e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
+            -e INFRACOST_API_KEY \
+            -e GITHUB_TOKEN \
             infra-checks:latest \
-            infracost comment github --path=/workspace/infracost.json \
+            infracost comment github \
+            --path=/workspace/infracost.json \
             --repo=${{ github.repository }} \
             --pull-request=${{ github.event.pull_request.number }} \
-            --github-token=${{ secrets.GITHUB_TOKEN }} \
+            --github-token=$GITHUB_TOKEN \
             --behavior=update
+
+      - name: Save Infracost artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: infracost-reports
+          path: |
+            infracost*.json
+          retention-days: 7
 
   infra-checks:
     name: Infrastructure Validation
