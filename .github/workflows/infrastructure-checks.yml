@@ -46,6 +46,64 @@ jobs:
         version: latest
         additional_args: --no-color --format json --run-statistics --out string --format json
 
+        ## COST ESTIMATION ##
+
+  cost-estimation:
+    name: Cost Estimation
+    runs-on: ubuntu-latest
+    # Only run on pull requests
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 1
+
+      - name: Generate Infracost cost estimate baseline
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -e INFRACOST_API_KEY=${{ secrets.INFRACOST_API_KEY }} \
+            infra-checks:latest \
+            infracost breakdown --path=/workspace \
+            --format=json \
+            --out-file=/workspace/infracost-base.json
+
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 1
+
+      - name: Generate Infracost diff
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -e INFRACOST_API_KEY=${{ secrets.INFRACOST_API_KEY }} \
+            infra-checks:latest \
+            infracost diff \
+            --path=/workspace \
+            --format=json \
+            --compare-to=/workspace/infracost-base.json \
+            --out-file=/workspace/infracost.json
+
+      - name: Post Infracost comment
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -e INFRACOST_API_KEY=${{ secrets.INFRACOST_API_KEY }} \
+            -e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
+            infra-checks:latest \
+            infracost comment github --path=/workspace/infracost.json \
+            --repo=${{ github.repository }} \
+            --pull-request=${{ github.event.pull_request.number }} \
+            --github-token=${{ secrets.GITHUB_TOKEN }} \
+            --behavior=update
+
   infra-checks:
     name: Infrastructure Validation
     runs-on: ubuntu-latest
