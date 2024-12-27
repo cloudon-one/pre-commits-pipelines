@@ -35,6 +35,10 @@ repos:
     -   id: double-quote-string-fixer
     -   id: name-tests-test
     -   id: requirements-txt-fixer
+    -   id: detect-private-key
+    -   id: detect-aws-credentials
+        args:
+          - --allow-missing-credentials
     -   id: pretty-format-json
         args:
           - --autofix
