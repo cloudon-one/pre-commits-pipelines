@@ -34,7 +34,7 @@ jobs:
           fetch-depth: 0  # Required for Gitleaks to scan git history
 
   tfsec:
-    name: tfsec
+    name: TFSec Scanner
     runs-on: ubuntu-latest
     steps:
     - name: Clone repo
@@ -48,86 +48,94 @@ jobs:
 
         ## COST ESTIMATION ##
 
-  cost-estimation:
-    name: Cost Estimation
+  infracost-pull-request-checks:
+    name: Infracost Pull Request Checks
+    if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize')
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     permissions:
       contents: read
-      pull-requests: write
+      pull-requests: write # Required to post comments
     steps:
-      - name: Checkout repository
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      # Checkout the base branch of the pull request (e.g. main/master).
+      - name: Checkout base branch
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          ref: '${{ github.event.pull_request.base.ref }}'
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      # Generate Infracost JSON file as the baseline.
+      - name: Generate Infracost cost estimate baseline
+        run: |
+          infracost breakdown --path=. \
+                              --format=json \
+                              --out-file=/tmp/infracost-base.json
 
-      - name: Build and cache Docker image
-        uses: docker/build-push-action@v5
+      # Checkout the current PR branch so we can create a diff.
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+
+      # Generate an Infracost diff and save it to a JSON file.
+      - name: Generate Infracost diff
+        run: |
+          infracost diff --path=. \
+                          --format=json \
+                          --compare-to=/tmp/infracost-base.json \
+                          --out-file=/tmp/infracost.json
+      - name: Post Infracost comment
+        run: |
+            infracost comment github --path=/tmp/infracost.json \
+                                     --repo=$GITHUB_REPOSITORY \
+                                     --github-token=${{ github.token }} \
+                                     --pull-request=${{ github.event.pull_request.number }} \
+                                     --behavior=update
+
+  # Run Infracost on default branch and update Infracost Cloud
+  infracost-default-branch-update:
+
+    name: Infracost Default Branch Update
+    if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'master')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v3
         with:
-          context: .
-          push: false
-          load: true
-          tags: infra-checks:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
 
-      - name: Authenticate Infracost
+      - name: Checkout main/master branch
+        uses: actions/checkout@v4
+
+      - name: Run Infracost on default branch and update Infracost Cloud
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -e INFRACOST_API_KEY=${{ secrets.INFRACOST_API_KEY }} \
-            infra-checks:latest \
-            infracost auth login
+          infracost breakdown --path=. \
+                    --format=json \
+                    --out-file=infracost.json
 
-      - name: Generate Infracost baseline
-        env:
-          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
-        run: |
-          # Find all Terraform directories
-          TF_DIRS=$(find . -type f -name "*.tf" -exec dirname {} \; | sort -u)
+          infracost upload --path=infracost.json || echo "Always pass main branch runs even if there are policy failures"
 
-          # Generate cost estimate for each directory
-          for dir in $TF_DIRS; do
-            echo "Generating cost estimate for $dir"
-            docker run --rm \
-              -v ${{ github.workspace }}:/workspace \
-              -e INFRACOST_API_KEY=${{ secrets.INFRACOST_API_KEY }} \
-              -w /workspace/$dir \
-              infra-checks:latest \
-              bash -c "infracost breakdown --path . --format json --out-file infracost-base.json"
-          done
+  # Update PR status in Infracost Cloud
+  infracost-pull-request-status-update:
+    name: Infracost PR Status Update
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Infracost PR Status Update
+      run: |
+        PR_STATUS="MERGED"
+        if [[ ${{ github.event.pull_request.merged }} = false ]]; then PR_STATUS="CLOSED"; fi
 
-      - name: Generate and post Infracost comment
-        if: success()
-        env:
-          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          # Generate comment
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -e INFRACOST_API_KEY=${{ secrets.INFRACOST_API_KEY }} \
-            -e GITHUB_TOKEN=${{ secrets.GH_TOKEN }} \
-            -w /workspace \
-            infra-checks:latest \
-            bash -c 'infracost output --path "infracost-base.json" --format github-comment --out-file infracost.md'
-
-          # Post comment using GitHub CLI
-          gh pr comment ${{ github.event.pull_request.number }} -F infracost.md
-
-      - name: Save Infracost artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: infracost-reports
-          path: |
-            **/infracost*.json
-            **/infracost*.md
-          retention-days: 7
-
+        echo "Updating status of ${{ github.event.pull_request.html_url }} to $PR_STATUS"
+        curl -i \
+          --request POST \
+          --header "Content-Type: application/json" \
+          --header "X-API-Key: $INFRACOST_API_KEY" \
+          --data "{ \"query\": \"mutation {updatePullRequestStatus( url: \\\"${{ github.event.pull_request.html_url }}\\\", status: $PR_STATUS )}\" }" \
+          "https://dashboard.api.infracost.io/graphql";
+      env:
+        INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
   infra-checks:
     name: Infrastructure Validation
     runs-on: ubuntu-latest
