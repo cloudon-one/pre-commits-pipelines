@@ -25,18 +25,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  security-scan:
-    name: Security Scanning
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Required to scan git history
 
   gitguard:
     name: GitGuardian scan
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required to scan git history
+
       - name: Run GitGuardian scan
         uses: GitGuardian/ggshield/actions/secret@v1.34.0
         env:
