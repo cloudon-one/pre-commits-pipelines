@@ -1,176 +1,110 @@
-# Infrastructure Pipeline Documentation
+# Infrastructure Checks Pipeline
 
-This repository contains a comprehensive CI/CD pipeline for infrastructure code validation, security scanning, and cost estimation. The pipeline is designed to ensure code quality, security compliance, and cost awareness for infrastructure-as-code projects.
+This repository implements a comprehensive infrastructure validation pipeline using GitHub Actions. The pipeline performs various security, cost, and quality checks on infrastructure code, particularly focusing on Terraform configurations.
 
-## 📋 Table of Contents
+## Pipeline Overview
 
-- [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
-- [Pipeline Components](#pipeline-components)
-- [Local Development](#local-development)
-- [GitHub Actions Workflow](#github-actions-workflow)
-- [Contributing](#contributing)
+The pipeline runs automatically on:
+- Pull requests that modify infrastructure files (`.tf`, `.tfvars`, `.hcl`, `Dockerfile`)
+- Push events to main/master branch with changes to infrastructure files
+- Changes to GitHub workflow files or pre-commit configuration
+
+## Security Scanning
+
+### GitGuardian Security Scan
+- Performs deep security scanning of the entire git history
+- Detects secrets, credentials, and sensitive information
+- Requires `GITGUARDIAN_API_KEY` secret to be configured
+
+### TFSec Analysis
+- Scans Terraform code for security issues and best practice violations
+- Generates JSON output with detailed findings
+- Runs in soft-fail mode to avoid blocking pipelines
+- Includes statistics about the scan results
+
+## Cost Management
+
+### Infracost Integration
+The pipeline includes comprehensive cost management through Infracost:
+
+#### Pull Request Checks
+- Generates cost estimates for infrastructure changes
+- Compares costs between base and PR branches
+- Posts detailed cost difference comments on PRs
+- Requires `INFRACOST_API_KEY` secret
+
+#### Main Branch Updates
+- Tracks cost changes on the main/master branch
+- Updates Infracost Cloud with latest cost data
+- Continues even if policy checks fail
+
+#### PR Status Tracking
+- Updates PR status in Infracost when PRs are merged or closed
+- Maintains accurate cost history
+
+## Infrastructure Validation
+
+### Docker-based Validation Suite
+The pipeline runs a comprehensive suite of checks in a Docker container:
+
+1. **Pre-commit Hooks**
+   - Runs all configured pre-commit checks
+   - Ensures code quality and formatting standards
+
+2. **TFLint**
+   - Lints Terraform files in all directories
+   - Validates against Terraform best practices
+
+3. **Terraform Operations**
+   - Runs `terraform init` with backend disabled
+   - Validates Terraform configurations
+   - Checks for required_providers blocks in all Terraform files
+
+## Required Secrets
+
+The following secrets must be configured in your GitHub repository:
+- `GITGUARDIAN_API_KEY`: For security scanning
+- `INFRACOST_API_KEY`: For cost estimation and tracking
+
+## Pipeline Features
+
+- **Concurrency Control**: Automatically cancels redundant runs
+- **Caching**: Uses GitHub Actions cache for Docker builds
+- **Comprehensive Validation**: Checks both security and functionality
+- **Cost Awareness**: Maintains visibility of infrastructure costs
+- **Pull Request Integration**: Provides feedback directly on PRs
 
 ## Prerequisites
 
-### Required Tools
+- Terraform files must include `required_providers` blocks
+- Docker must be available in the GitHub Actions environment
+- Appropriate secrets must be configured
+- Pre-commit configuration must be present in `.pre-commit-config.yaml`
 
-- Docker 20.10.0 or higher
-- Git 2.28.0 or higher
-- Make
-- GitHub account with repository access
+## Error Handling
 
-## Quick Start
+- TFSec runs in soft-fail mode to provide warnings without blocking
+- Main branch Infracost updates continue even with policy failures
+- Infrastructure validation fails if any required_providers blocks are missing
+- Clear error messages are provided for failed checks
 
-1. Clone the repository:
+## Usage
 
-   ```bash
-   git clone git@github.com:cloudon-one/pre-commits-pipelines.git
-   cd pre-commits-pipelines
+The pipeline runs automatically based on the configured triggers. No manual intervention is required unless errors are detected.
 
-2. Run all checks locally:
-
-   ```bash
-   make all
-   ```
-
-## Pipeline Components
-
-### Pre-commit Checks
-
-- Terraform formatting
-- Terraform documentation
-- YAML/JSON formatting
-- File size limits
-- EOF fixes
-
-**TFSec**
-
-   - Infrastructure security best practices
-   - Custom rule support
-   - SARIF report generation
-
-## Local Development
-
-### Make Commands
-
-```bash
-# Show available commands
-make help
-
-# Build Docker image
-make build
-
-# Run pre-commit checks
-make local-check
-
-# Run Terraform validation
-make test
-
-# Clean up resources
-make clean
-
-# Run all checks
-make all
-```
-
-### Pre-commit Configuration
-
-The `.pre-commit-config.yaml` file includes:
-
-```yaml
-repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-  - repo: https://github.com/antonbabenko/pre-commit-terraform
-  - repo: https://github.com/asottile/add-trailing-comma
-  - repo: https://github.com/hhatto/autopep8
-```
-
-## GitHub Actions Workflow
-
-### Workflow Triggers
-
-- Pull requests targeting main/master
-- Push to main/master
-- File paths:
-  - `.tf`
-  - `.tfvars`
-  - `.hcl`
-  - Workflow files
-  - Pre-commit config
-
-### PR Checks
-
-1. **Compliance**
-   - Semantic PR titles
-   - Size limits
-   - Required files
-
-3. **Infrastructure**
-   - Terraform validation
-   - Provider verification
-   - Documentation checks
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Docker Build Fails**
-
-   ```bash
-   # Clean Docker cache
-   docker system prune -a
-   make build
-   ```
-
-2. **Pre-commit Hooks Fail**
-
-   ```bash
-   # Update hooks
-   pre-commit clean
-   pre-commit autoupdate
-   ```
-
-3. **Terraform Validation Issues**
-
-   ```bash
-   # Clean Terraform cache
-   make clean
-   make test
-   ```
-
-### Debug Mode
-
-Enable verbose output:
-
-```bass
-# For Terraform
-TF_LOG=DEBUG make test
-```
+1. Make your infrastructure changes
+2. Create a pull request
+3. Review the automated checks:
+   - Security scan results
+   - Cost impact analysis
+   - Infrastructure validation outcomes
+4. Address any issues identified by the pipeline
+5. Merge when all checks pass
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run all checks:
-
-   ```bash
-   make all
-   ```
-
-5. Submit a pull request
-
-### PR Guidelines
-
-- Follow semantic commit messages
-- Include test cases
-- Update documentation
-- Keep changes focused
-
-### Code Style
-
-- Follow HashiCorp's Terraform style guide
-- Use consistent naming conventions
-- Include comments for complex logic
-- Update README for new features
+When contributing to this repository, ensure your changes:
+- Include appropriate Terraform provider configurations
+- Follow security best practices
+- Consider cost implications
+- Pass all pipeline checks
